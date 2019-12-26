@@ -87,6 +87,8 @@ const createFailedResultJson = (title, msg) => {
     numFailedTests: 1,
     success: false,
     message: 'Prerequisite tests failed',
+    startTime: '',
+    endTime: '',
     testResults: [
       {
         at: (new Date().getTime() / 1000).toFixed(3),
