@@ -20,16 +20,15 @@ package com.hedera.mirror.grpc.repository;
  * ‍
  */
 
-import java.time.Instant;
-import org.springframework.data.r2dbc.repository.Query;
-import org.springframework.data.repository.reactive.ReactiveCrudRepository;
-import reactor.core.publisher.Flux;
+import java.util.stream.Stream;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.CrudRepository;
 
 import com.hedera.mirror.grpc.domain.TopicMessage;
 
-public interface TopicMessageRepository extends ReactiveCrudRepository<TopicMessage, Instant>,
-        TopicMessageRepositoryCustom {
+public interface TopicMessageRepository extends CrudRepository<TopicMessage, Long>, TopicMessageRepositoryCustom {
 
-    @Query("select * from topic_message where consensus_timestamp > :? order by consensus_timestamp asc")
-    Flux<TopicMessage> findByConsensusTimestampGreaterThan(long consensusTimestamp);
+    @Query("from TopicMessage where consensusTimestamp > ?1 order by consensusTimestamp asc")
+    Stream<TopicMessage> findByConsensusTimestampGreaterThan(long consensusTimestamp, Pageable pageable);
 }

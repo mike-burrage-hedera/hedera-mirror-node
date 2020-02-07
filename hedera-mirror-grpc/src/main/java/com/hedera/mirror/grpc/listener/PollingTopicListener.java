@@ -31,7 +31,7 @@ import reactor.core.publisher.Flux;
 
 import com.hedera.mirror.grpc.domain.TopicMessage;
 import com.hedera.mirror.grpc.domain.TopicMessageFilter;
-import com.hedera.mirror.grpc.repository.TopicMessageRepository;
+import com.hedera.mirror.grpc.repository.TopicMessageRepositoryAdapter;
 
 @Named
 @Log4j2
@@ -39,7 +39,7 @@ import com.hedera.mirror.grpc.repository.TopicMessageRepository;
 public class PollingTopicListener implements TopicListener {
 
     private final ListenerProperties listenerProperties;
-    private final TopicMessageRepository topicMessageRepository;
+    private final TopicMessageRepositoryAdapter topicMessageRepositoryAdapter;
 
     @Override
     public Flux<TopicMessage> listen(TopicMessageFilter filter) {
@@ -59,7 +59,7 @@ public class PollingTopicListener implements TopicListener {
         TopicMessageFilter filter = context.getFilter();
         TopicMessage last = context.getLast();
         long limit = filter.hasLimit() ? filter.getLimit() - context.getCount().get() : 0;
-        Instant startTime = last != null ? last.getConsensusTimestamp().plusNanos(1) : filter.getStartTime();
+        Instant startTime = last != null ? last.getConsensusTimestampInstant().plusNanos(1) : filter.getStartTime();
 
         TopicMessageFilter newFilter = TopicMessageFilter.builder()
                 .endTime(filter.getEndTime())
@@ -70,7 +70,7 @@ public class PollingTopicListener implements TopicListener {
                 .topicNum(filter.getTopicNum())
                 .build();
 
-        return topicMessageRepository.findByFilter(newFilter)
+        return topicMessageRepositoryAdapter.findByFilter(newFilter)
                 .doOnSubscribe(s -> context.setRunning(true))
                 .doOnCancel(() -> context.setRunning(false))
                 .doOnComplete(() -> context.setRunning(false));

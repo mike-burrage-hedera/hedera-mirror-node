@@ -20,15 +20,16 @@ package com.hedera.mirror.grpc.repository;
  * ‍
  */
 
+import java.util.stream.Stream;
 import javax.inject.Named;
+import javax.persistence.EntityManager;
+import javax.persistence.TypedQuery;
+import javax.persistence.criteria.CriteriaBuilder;
+import javax.persistence.criteria.CriteriaQuery;
+import javax.persistence.criteria.Predicate;
+import javax.persistence.criteria.Root;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.r2dbc.core.DatabaseClient;
-import org.springframework.data.r2dbc.query.Criteria;
-import reactor.core.publisher.Flux;
 
 import com.hedera.mirror.grpc.GrpcProperties;
 import com.hedera.mirror.grpc.converter.InstantToLongConverter;
@@ -40,40 +41,35 @@ import com.hedera.mirror.grpc.domain.TopicMessageFilter;
 @RequiredArgsConstructor
 public class TopicMessageRepositoryCustomImpl implements TopicMessageRepositoryCustom {
 
-    private final DatabaseClient databaseClient;
+    private final EntityManager entityManager;
     private final GrpcProperties grpcProperties;
-    private final InstantToLongConverter instantToLongConverter;
+    private final InstantToLongConverter converter;
 
     @Override
-    public Flux<TopicMessage> findByFilter(TopicMessageFilter filter) {
-        Criteria whereClause = Criteria.where("realm_num")
-                .is(filter.getRealmNum())
-                .and("topic_num")
-                .is(filter.getTopicNum())
-                .and("consensus_timestamp")
-                .greaterThanOrEquals(instantToLongConverter.convert(filter.getStartTime()));
+    public Stream<TopicMessage> findByFilter(TopicMessageFilter filter) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<TopicMessage> query = cb.createQuery(TopicMessage.class);
+        Root<TopicMessage> root = query.from(TopicMessage.class);
+
+        Predicate predicate = cb.and(
+                cb.equal(root.get("realmNum"), filter.getRealmNum()),
+                cb.equal(root.get("topicNum"), filter.getTopicNum()),
+                cb.greaterThanOrEqualTo(root.get("consensusTimestamp"), converter.convert(filter.getStartTime()))
+        );
 
         if (filter.getEndTime() != null) {
-            whereClause = whereClause.and("consensus_timestamp")
-                    .lessThan(instantToLongConverter.convert(filter.getEndTime()));
+            predicate = cb.and(predicate, cb
+                    .lessThan(root.get("consensusTimestamp"), converter.convert(filter.getEndTime())));
         }
 
-        int limit = filter.hasLimit() ? (int) filter.getLimit() : Integer.MAX_VALUE;
-        int pageSize = Math.min(limit, grpcProperties.getMaxPageSize());
-        Pageable pageable = PageRequest.of(0, pageSize);
+        query = query.select(root).where(predicate).orderBy(cb.asc(root.get("consensusTimestamp")));
+        TypedQuery<TopicMessage> typedQuery = entityManager.createQuery(query);
+        typedQuery.setHint("org.hibernate.fetchSize", grpcProperties.getMaxPageSize());
 
-        return databaseClient.select()
-                .from(TopicMessage.class)
-                .matching(whereClause)
-                .orderBy(Sort.by("consensus_timestamp"))
-                .page(pageable)
-                .fetch()
-                .all()
-                .name("findByFilter")
-                .metrics()
-                .doOnSubscribe(s -> log.debug("Executing query: {}", filter))
-                .doOnCancel(() -> log.debug("[{}] Cancelled query", filter.getSubscriberId()))
-                .doOnComplete(() -> log.debug("[{}] Completed query", filter.getSubscriberId()))
-                .doOnNext(t -> log.trace("[{}] Next message: {}", filter.getSubscriberId(), t));
+        if (filter.hasLimit()) {
+            typedQuery.setMaxResults((int) filter.getLimit());
+        }
+
+        return typedQuery.getResultList().stream();
     }
 }

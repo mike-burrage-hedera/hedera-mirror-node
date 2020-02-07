@@ -132,7 +132,7 @@ public class ConsensusControllerTest extends GrpcIntegrationTest {
 
     private ConsensusTopicResponse response(TopicMessage topicMessage) throws Exception {
         return ConsensusTopicResponse.newBuilder()
-                .setConsensusTimestamp(ProtoUtil.toTimestamp(topicMessage.getConsensusTimestamp()))
+                .setConsensusTimestamp(ProtoUtil.toTimestamp(topicMessage.getConsensusTimestampInstant()))
                 .setMessage(ByteString.copyFrom(topicMessage.getMessage()))
                 .setSequenceNumber(topicMessage.getSequenceNumber())
                 .setRunningHash(ByteString.copyFrom(topicMessage.getRunningHash()))

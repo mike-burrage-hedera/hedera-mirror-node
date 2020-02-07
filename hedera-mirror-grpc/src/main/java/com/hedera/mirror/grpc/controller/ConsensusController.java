@@ -84,7 +84,7 @@ public class ConsensusController extends ReactorConsensusServiceGrpc.ConsensusSe
 
     private ConsensusTopicResponse toResponse(TopicMessage topicMessage) {
         return ConsensusTopicResponse.newBuilder()
-                .setConsensusTimestamp(ProtoUtil.toTimestamp(topicMessage.getConsensusTimestamp()))
+                .setConsensusTimestamp(ProtoUtil.toTimestamp(topicMessage.getConsensusTimestampInstant()))
                 .setMessage(ByteString.copyFrom(topicMessage.getMessage()))
                 .setSequenceNumber(topicMessage.getSequenceNumber())
                 .setRunningHash(ByteString.copyFrom(topicMessage.getRunningHash()))

@@ -34,7 +34,7 @@ import reactor.core.publisher.Flux;
 import com.hedera.mirror.grpc.domain.TopicMessage;
 import com.hedera.mirror.grpc.domain.TopicMessageFilter;
 import com.hedera.mirror.grpc.listener.TopicListener;
-import com.hedera.mirror.grpc.repository.TopicMessageRepository;
+import com.hedera.mirror.grpc.repository.TopicMessageRepositoryAdapter;
 
 @Named
 @Log4j2
@@ -43,19 +43,20 @@ import com.hedera.mirror.grpc.repository.TopicMessageRepository;
 public class TopicMessageServiceImpl implements TopicMessageService {
 
     private final TopicListener topicListener;
-    private final TopicMessageRepository topicMessageRepository;
+    private final TopicMessageRepositoryAdapter topicMessageRepositoryAdapter;
 
     @Override
     public Flux<TopicMessage> subscribeTopic(TopicMessageFilter filter) {
         log.info("Subscribing to topic: {}", filter);
         TopicContext topicContext = new TopicContext(filter);
 
-        return topicMessageRepository.findByFilter(filter)
+        return topicMessageRepositoryAdapter.findByFilter(filter)
                 .doOnComplete(topicContext::onComplete)
                 .concatWith(Flux.defer(() -> incomingMessages(topicContext))) // Defer creation until query complete
                 .filter(t -> t.compareTo(topicContext.getLastTopicMessage()) > 0) // Ignore duplicates
                 .concatMap(t -> missingMessages(topicContext, t))
-                .takeWhile(t -> filter.getEndTime() == null || t.getConsensusTimestamp().isBefore(filter.getEndTime()))
+                .takeWhile(t -> filter.getEndTime() == null || t.getConsensusTimestampInstant()
+                        .isBefore(filter.getEndTime()))
                 .as(t -> filter.hasLimit() ? t.limitRequest(filter.getLimit()) : t)
                 .doOnNext(topicContext::onNext)
                 .doOnCancel(topicContext::onComplete)
@@ -70,7 +71,7 @@ public class TopicMessageServiceImpl implements TopicMessageService {
         TopicMessageFilter filter = topicContext.getFilter();
         TopicMessage last = topicContext.getLastTopicMessage();
         long limit = filter.hasLimit() ? filter.getLimit() - topicContext.getCount().get() : 0;
-        Instant startTime = last != null ? last.getConsensusTimestamp().plusNanos(1) : filter.getStartTime();
+        Instant startTime = last != null ? last.getConsensusTimestampInstant().plusNanos(1) : filter.getStartTime();
 
         TopicMessageFilter newFilter = TopicMessageFilter.builder()
                 .endTime(filter.getEndTime())
@@ -92,11 +93,11 @@ public class TopicMessageServiceImpl implements TopicMessageService {
         TopicMessage last = topicContext.getLastTopicMessage();
         TopicMessageFilter filter = topicContext.getFilter();
         TopicMessageFilter newFilter = TopicMessageFilter.builder()
-                .endTime(current.getConsensusTimestamp())
+                .endTime(current.getConsensusTimestampInstant())
                 .limit(current.getSequenceNumber() - last.getSequenceNumber() - 1)
                 .realmNum(filter.getRealmNum())
                 .subscriberId(filter.getSubscriberId())
-                .startTime(last.getConsensusTimestamp().plusNanos(1))
+                .startTime(last.getConsensusTimestampInstant().plusNanos(1))
                 .topicNum(filter.getTopicNum())
                 .build();
 
@@ -104,7 +105,7 @@ public class TopicMessageServiceImpl implements TopicMessageService {
                 filter.getSubscriberId(), topicContext.getTopicId(), last.getSequenceNumber(),
                 current.getSequenceNumber());
 
-        return topicMessageRepository.findByFilter(newFilter)
+        return topicMessageRepositoryAdapter.findByFilter(newFilter)
                 .concatWithValues(current);
     }
 

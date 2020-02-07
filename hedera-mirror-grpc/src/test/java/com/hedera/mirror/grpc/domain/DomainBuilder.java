@@ -32,9 +32,10 @@ import lombok.extern.log4j.Log4j2;
 import org.reactivestreams.Publisher;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
-import org.springframework.data.r2dbc.core.DatabaseClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import com.hedera.mirror.grpc.repository.TopicMessageRepository;
 
 @Log4j2
 @Named
@@ -43,12 +44,12 @@ import reactor.core.publisher.Mono;
 public class DomainBuilder {
 
     private final Instant now = Instant.now();
-    private final DatabaseClient databaseClient;
+    private final TopicMessageRepository topicMessageRepository;
     private long sequenceNumber = 0L;
 
     @PostConstruct
     void setup() {
-        databaseClient.delete().from(TopicMessage.class).fetch().rowsUpdated().block();
+        topicMessageRepository.deleteAll();
     }
 
     public Mono<TopicMessage> topicMessage() {
@@ -85,12 +86,8 @@ public class DomainBuilder {
         return Flux.concat(publishers);
     }
 
-    private <T> Mono<?> insert(T domainObject) {
-        return databaseClient.insert()
-                .into((Class<T>) domainObject.getClass())
-                .using(domainObject)
-                .fetch()
-                .first()
+    private Mono<TopicMessage> insert(TopicMessage topicMessage) {
+        return Mono.just(topicMessageRepository.save(topicMessage))
                 .doOnNext(d -> log.debug("Inserted: {}", d));
     }
 }

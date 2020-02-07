@@ -20,10 +20,7 @@ package com.hedera.mirror.grpc;
  * ‍
  */
 
-import java.util.HashMap;
-import java.util.Map;
 import javax.validation.constraints.Min;
-import javax.validation.constraints.NotNull;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
@@ -34,7 +31,4 @@ import org.springframework.validation.annotation.Validated;
 public class GrpcProperties {
     @Min(32)
     private int maxPageSize = 1000;
-
-    @NotNull
-    private Map<String, String> connectionOptions = new HashMap<>();
 }

@@ -26,6 +26,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import javax.annotation.Resource;
+import javax.transaction.Transactional;
 import javax.validation.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
@@ -39,7 +40,9 @@ import com.hedera.mirror.grpc.domain.TopicMessage;
 import com.hedera.mirror.grpc.domain.TopicMessageFilter;
 import com.hedera.mirror.grpc.listener.TopicListener;
 import com.hedera.mirror.grpc.repository.TopicMessageRepository;
+import com.hedera.mirror.grpc.repository.TopicMessageRepositoryAdapter;
 
+@Transactional
 public class TopicMessageServiceTest extends GrpcIntegrationTest {
 
     @Resource
@@ -47,6 +50,9 @@ public class TopicMessageServiceTest extends GrpcIntegrationTest {
 
     @Resource
     private DomainBuilder domainBuilder;
+
+    @Resource
+    private TopicMessageRepository topicMessageRepository;
 
     @Test
     void invalidFilter() {
@@ -142,7 +148,7 @@ public class TopicMessageServiceTest extends GrpcIntegrationTest {
 
         TopicMessageFilter filter = TopicMessageFilter.builder()
                 .startTime(Instant.EPOCH)
-                .endTime(topicMessage4.getConsensusTimestamp())
+                .endTime(topicMessage4.getConsensusTimestampInstant())
                 .build();
 
         topicMessageService.subscribeTopic(filter)
@@ -328,8 +334,8 @@ public class TopicMessageServiceTest extends GrpcIntegrationTest {
     @Test
     void missingMessages() {
         TopicListener topicListener = Mockito.mock(TopicListener.class);
-        TopicMessageRepository topicMessageRepository = Mockito.mock(TopicMessageRepository.class);
-        topicMessageService = new TopicMessageServiceImpl(topicListener, topicMessageRepository);
+        TopicMessageRepositoryAdapter topicMessageRepositoryAdapter = Mockito.mock(TopicMessageRepositoryAdapter.class);
+        topicMessageService = new TopicMessageServiceImpl(topicListener, topicMessageRepositoryAdapter);
 
         TopicMessageFilter filter = TopicMessageFilter.builder()
                 .startTime(Instant.EPOCH)
@@ -339,11 +345,11 @@ public class TopicMessageServiceTest extends GrpcIntegrationTest {
         TopicMessage afterMissing = topicMessage(4);
 
         Mockito.when(topicListener.listen(filter)).thenReturn(Flux.just(beforeMissing, afterMissing));
-        Mockito.when(topicMessageRepository.findByFilter(filter)).thenReturn(Flux.empty());
-        Mockito.when(topicMessageRepository.findByFilter(ArgumentMatchers
+        Mockito.when(topicMessageRepositoryAdapter.findByFilter(filter)).thenReturn(Flux.empty());
+        Mockito.when(topicMessageRepositoryAdapter.findByFilter(ArgumentMatchers
                 .argThat(t -> t.getLimit() == 2 &&
-                        t.getStartTime().equals(beforeMissing.getConsensusTimestamp().plusNanos(1)) &&
-                        t.getEndTime().equals(afterMissing.getConsensusTimestamp()))))
+                        t.getStartTime().equals(beforeMissing.getConsensusTimestampInstant().plusNanos(1)) &&
+                        t.getEndTime().equals(afterMissing.getConsensusTimestampInstant()))))
                 .thenReturn(Flux.just(
                         topicMessage(2),
                         topicMessage(3)

@@ -23,35 +23,69 @@ package com.hedera.mirror.grpc.domain;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import java.time.Instant;
 import java.util.Comparator;
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.ToString;
-import lombok.Value;
-import org.springframework.data.annotation.Id;
+import org.springframework.data.domain.Persistable;
 
+import com.hedera.mirror.grpc.converter.InstantToLongConverter;
+import com.hedera.mirror.grpc.converter.LongToInstantConverter;
 import com.hedera.mirror.grpc.converter.LongToInstantDeserializer;
 
+@Data
+@Entity
 @Builder
-@Value
-public class TopicMessage implements Comparable<TopicMessage> {
+@AllArgsConstructor
+@NoArgsConstructor
+public class TopicMessage implements Comparable<TopicMessage>, Persistable<Long> {
+
+    private static final InstantToLongConverter instantToLongConverter = new InstantToLongConverter();
+    private static final LongToInstantConverter longToInstantConverter = new LongToInstantConverter();
 
     @Id
     @JsonDeserialize(using = LongToInstantDeserializer.class)
-    private Instant consensusTimestamp;
-
+    private Long consensusTimestamp;
     @ToString.Exclude
     private byte[] message;
-
     private int realmNum;
-
     @ToString.Exclude
     private byte[] runningHash;
-
     private long sequenceNumber;
-
     private int topicNum;
+
+    public Instant getConsensusTimestampInstant() {
+        return longToInstantConverter.convert(consensusTimestamp);
+    }
 
     @Override
     public int compareTo(TopicMessage other) {
         return Comparator.nullsFirst(Comparator.comparingLong(TopicMessage::getSequenceNumber)).compare(this, other);
+    }
+
+    @Override
+    public Long getId() {
+        return consensusTimestamp;
+    }
+
+    @Override
+    public boolean isNew() {
+        return true;
+    }
+
+    public static class TopicMessageBuilder {
+        private long consensusTimestamp;
+
+        public TopicMessageBuilder consensusTimestamp(Instant consensusTimestamp) {
+            this.consensusTimestamp = instantToLongConverter.convert(consensusTimestamp);
+            return this;
+        }
+
+        public TopicMessage build() {
+            return new TopicMessage(consensusTimestamp, message, realmNum, runningHash, sequenceNumber, topicNum);
+        }
     }
 }

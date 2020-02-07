@@ -25,8 +25,11 @@ import java.time.Instant;
 import javax.inject.Named;
 import lombok.Data;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import reactor.core.publisher.Flux;
 
+import com.hedera.mirror.grpc.GrpcProperties;
 import com.hedera.mirror.grpc.converter.InstantToLongConverter;
 import com.hedera.mirror.grpc.domain.TopicMessage;
 import com.hedera.mirror.grpc.domain.TopicMessageFilter;
@@ -36,15 +39,15 @@ import com.hedera.mirror.grpc.repository.TopicMessageRepository;
 @Log4j2
 public class SharedPollingTopicListener implements TopicListener {
 
-    private final ListenerProperties listenerProperties;
+    private final GrpcProperties grpcProperties;
     private final TopicMessageRepository topicMessageRepository;
     private final InstantToLongConverter instantToLongConverter;
     private final Flux<TopicMessage> poller;
 
-    public SharedPollingTopicListener(ListenerProperties listenerProperties,
+    public SharedPollingTopicListener(GrpcProperties grpcProperties, ListenerProperties listenerProperties,
                                       TopicMessageRepository topicMessageRepository,
                                       InstantToLongConverter instantToLongConverter) {
-        this.listenerProperties = listenerProperties;
+        this.grpcProperties = grpcProperties;
         this.topicMessageRepository = topicMessageRepository;
         this.instantToLongConverter = instantToLongConverter;
 
@@ -73,8 +76,10 @@ public class SharedPollingTopicListener implements TopicListener {
         Instant instant = context.getLastConsensusTimestamp();
         Long consensusTimestamp = instantToLongConverter.convert(instant);
         log.debug("Querying for messages after: {}", instant);
+        Pageable pageable = PageRequest.of(0, grpcProperties.getMaxPageSize());
 
-        return topicMessageRepository.findByConsensusTimestampGreaterThan(consensusTimestamp)
+        return Flux.fromStream(() -> topicMessageRepository
+                .findByConsensusTimestampGreaterThan(consensusTimestamp, pageable))
                 .doOnSubscribe(s -> context.setRunning(true))
                 .doOnCancel(() -> context.setRunning(false))
                 .doOnComplete(() -> context.setRunning(false));
@@ -83,7 +88,7 @@ public class SharedPollingTopicListener implements TopicListener {
     private boolean filterMessage(TopicMessage message, TopicMessageFilter filter) {
         return filter.getRealmNum() == message.getRealmNum() &&
                 filter.getTopicNum() == message.getTopicNum() &&
-                !filter.getStartTime().isAfter(message.getConsensusTimestamp());
+                !filter.getStartTime().isAfter(message.getConsensusTimestampInstant());
     }
 
     @Data
@@ -93,7 +98,7 @@ public class SharedPollingTopicListener implements TopicListener {
         private volatile boolean running = false;
 
         void onNext(TopicMessage topicMessage) {
-            lastConsensusTimestamp = topicMessage.getConsensusTimestamp();
+            lastConsensusTimestamp = topicMessage.getConsensusTimestampInstant();
             log.trace("Next message: {}", topicMessage);
         }
     }

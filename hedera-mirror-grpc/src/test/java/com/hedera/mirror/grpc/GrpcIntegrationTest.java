@@ -20,17 +20,13 @@ package com.hedera.mirror.grpc;
  * ‍
  */
 
-import io.r2dbc.postgresql.PostgresqlConnectionFactoryProvider;
-import java.util.Map;
 import javax.annotation.PreDestroy;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.boot.autoconfigure.r2dbc.ConnectionFactoryOptionsBuilderCustomizer;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.context.annotation.Bean;
 import org.springframework.test.context.ContextConfiguration;
 import org.testcontainers.containers.PostgreSQLContainer;
 
@@ -56,12 +52,6 @@ public abstract class GrpcIntegrationTest {
             System.setProperty("testcontainers.windowsprovider.timeout", "1");
         }
 
-        @Bean
-        ConnectionFactoryOptionsBuilderCustomizer testConnectionFactoryCustomizer() {
-            Map<String, String> options = Map.of("default_transaction_read_only", "off");
-            return builder -> builder.option(PostgresqlConnectionFactoryProvider.OPTIONS, options);
-        }
-
         @Override
         public void initialize(ConfigurableApplicationContext applicationContext) {
             try {
@@ -74,8 +64,6 @@ public abstract class GrpcIntegrationTest {
                         .and("hedera.mirror.grpc.db.password=" + postgresql.getPassword())
                         .and("hedera.mirror.grpc.db.username=" + postgresql.getUsername())
                         .and("spring.datasource.url=" + postgresql.getJdbcUrl())
-                        .and("spring.r2dbc.url=" + postgresql.getJdbcUrl()
-                                .replace("jdbc:", "r2dbc:"))
                         .applyTo(applicationContext);
             } catch (Throwable ex) {
                 log.warn(ex.getMessage());

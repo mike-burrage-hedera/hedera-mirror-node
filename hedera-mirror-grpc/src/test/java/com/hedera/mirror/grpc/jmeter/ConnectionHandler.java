@@ -20,11 +20,6 @@ package com.hedera.mirror.grpc.jmeter;
  * ‍
  */
 
-import io.r2dbc.postgresql.PostgresqlConnectionConfiguration;
-import io.r2dbc.postgresql.PostgresqlConnectionFactory;
-import io.r2dbc.postgresql.api.PostgresqlConnection;
-import io.r2dbc.postgresql.api.PostgresqlStatement;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import lombok.extern.log4j.Log4j2;
@@ -35,7 +30,7 @@ import com.hedera.mirror.grpc.converter.InstantToLongConverter;
 public class ConnectionHandler {
 
     private final InstantToLongConverter converter = new InstantToLongConverter();
-    private final PostgresqlConnection connection;
+    // private final PostgresqlConnection connection;
     private final String host;
     private final int port;
     private final String dbName;
@@ -49,27 +44,27 @@ public class ConnectionHandler {
         this.dbUser = dbUser;
         this.dbPassword = dbPassword;
 
-        connection = getConnection();
+        //  connection = getConnection();
     }
 
-    private PostgresqlConnectionFactory getConnectionFactory() {
-        log.trace("Initialize connectionFactory");
-        PostgresqlConnectionFactory connectionFactory = new PostgresqlConnectionFactory(
-                PostgresqlConnectionConfiguration.builder()
-                        .host(host)
-                        .port(port)
-                        .username(dbUser)
-                        .password(dbPassword)
-                        .database(dbName)
-                        .build());
+//    private PostgresqlConnectionFactory getConnectionFactory() {
+//        log.trace("Initialize connectionFactory");
+//        PostgresqlConnectionFactory connectionFactory = new PostgresqlConnectionFactory(
+//                PostgresqlConnectionConfiguration.builder()
+//                        .host(host)
+//                        .port(port)
+//                        .username(dbUser)
+//                        .password(dbPassword)
+//                        .database(dbName)
+//                        .build());
+//
+//        return connectionFactory;
+//    }
 
-        return connectionFactory;
-    }
-
-    private PostgresqlConnection getConnection() {
-        log.debug("Obtain PostgresqlConnection");
-        return getConnectionFactory().create().block(Duration.ofMillis(500));
-    }
+//    private PostgresqlConnection getConnection() {
+//        log.debug("Obtain PostgresqlConnection");
+//        return getConnectionFactory().create().block(Duration.ofMillis(500));
+//    }
 
     public void insertTopicMessage(int newTopicsMessageCount, long topicNum, Instant startTime, long seqStart) {
         if (newTopicsMessageCount == 0) {
@@ -90,14 +85,14 @@ public class ConnectionHandler {
                     + " (consensus_timestamp, realm_num, topic_num, message, running_hash, sequence_number)"
                     + " values ($1, $2, $3, $4, $5, $6)";
 
-            PostgresqlStatement statement = connection.createStatement(topicMessageInsertSql)
-                    .bind("$1", consensusTimestamp)
-                    .bind("$2", 0)
-                    .bind("$3", topicNum)
-                    .bind("$4", new byte[] {22, 33, 44})
-                    .bind("$5", new byte[] {55, 66, 77})
-                    .bind("$6", sequenceNum);
-            statement.execute().blockLast();
+//            PostgresqlStatement statement = connection.createStatement(topicMessageInsertSql)
+//                    .bind("$1", consensusTimestamp)
+//                    .bind("$2", 0)
+//                    .bind("$3", topicNum)
+//                    .bind("$4", new byte[] {22, 33, 44})
+//                    .bind("$5", new byte[] {55, 66, 77})
+//                    .bind("$6", sequenceNum);
+//            statement.execute().blockLast();
 
             log.trace("Stored TopicMessage {}, Time: {}, count: {}, seq : {}", topicNum, consensusTimestamp, i,
                     sequenceNum);
@@ -108,19 +103,19 @@ public class ConnectionHandler {
 
     public long getNextAvailableTopicID() {
         String nextTopicIdSql = "SELECT MAX(topic_num) FROM topic_message";
-        PostgresqlStatement statement = connection.createStatement(nextTopicIdSql);
-
-        long nextTopicId = 1 + statement.execute()
-                .flatMap(result ->
-                        result.map((row, metadata) -> {
-                            Long topicNum = row.get(0, Long.class);
-
-                            if (topicNum == null) {
-                                throw new IllegalStateException("Topic num query failed");
-                            }
-
-                            return topicNum;
-                        })).blockFirst();
+        //PostgresqlStatement statement = connection.createStatement(nextTopicIdSql);
+        long nextTopicId = 1;
+//        long nextTopicId = 1 + statement.execute()
+//                .flatMap(result ->
+//                        result.map((row, metadata) -> {
+//                            Long topicNum = row.get(0, Long.class);
+//
+//                            if (topicNum == null) {
+//                                throw new IllegalStateException("Topic num query failed");
+//                            }
+//
+//                            return topicNum;
+//                        })).blockFirst();
 
         log.trace("Next available topic ID number is {}", nextTopicId);
         return nextTopicId;
@@ -128,21 +123,21 @@ public class ConnectionHandler {
 
     public long getNextAvailableSequenceNumber(long topicId) {
         String nextSeqSql = "SELECT MAX(sequence_number) FROM topic_message WHERE topic_num = $1";
-        PostgresqlStatement statement = connection.createStatement(nextSeqSql).bind("$1", topicId);
+        //PostgresqlStatement statement = connection.createStatement(nextSeqSql).bind("$1", topicId);
 
-        long nextSeqNum = 1 + statement.execute()
-                .flatMap(result ->
-                        result.map((row, metadata) -> {
-                            Long max = row.get(0, Long.class);
-
-                            if (max == null) {
-                                max = -1L;
-                                log.trace("Max sequence num query failed, setting max to -1 as likely not messages " +
-                                        "for this topic exist");
-                            }
-
-                            return max;
-                        })).blockFirst();
+        long nextSeqNum = 1;// + statement.execute()
+//                .flatMap(result ->
+//                        result.map((row, metadata) -> {
+//                            Long max = row.get(0, Long.class);
+//
+//                            if (max == null) {
+//                                max = -1L;
+//                                log.trace("Max sequence num query failed, setting max to -1 as likely not messages " +
+//                                        "for this topic exist");
+//                            }
+//
+//                            return max;
+//                        })).blockFirst();
 
         log.trace("Next available topic ID sequence number is {}", nextSeqNum);
         return nextSeqNum;
@@ -155,17 +150,17 @@ public class ConnectionHandler {
             return;
         }
 
-        String delTopicMsgsSql = "delete from topic_message where topic_num = $1 and sequence_number >= $2";
-        PostgresqlStatement statement = connection.createStatement(delTopicMsgsSql)
-                .bind("$1", topicId)
-                .bind("$2", seqNumFrom);
-
-        statement.execute().blockLast();
+//        String delTopicMsgsSql = "delete from topic_message where topic_num = $1 and sequence_number >= $2";
+//        PostgresqlStatement statement = connection.createStatement(delTopicMsgsSql)
+//                .bind("$1", topicId)
+//                .bind("$2", seqNumFrom);
+//
+//        statement.execute().blockLast();
         log.info("Cleared topic messages for topic ID {} after sequence {}", topicId, seqNumFrom);
     }
 
     public void close() {
         log.debug("Closing connection");
-        connection.close().block(Duration.ofMillis(500));
+        // connection.close().block(Duration.ofMillis(500));
     }
 }
