@@ -26,7 +26,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import javax.annotation.Resource;
-import javax.transaction.Transactional;
 import javax.validation.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
@@ -42,7 +41,6 @@ import com.hedera.mirror.grpc.listener.TopicListener;
 import com.hedera.mirror.grpc.repository.TopicMessageRepository;
 import com.hedera.mirror.grpc.repository.TopicMessageRepositoryAdapter;
 
-@Transactional
 public class TopicMessageServiceTest extends GrpcIntegrationTest {
 
     @Resource
@@ -153,9 +151,7 @@ public class TopicMessageServiceTest extends GrpcIntegrationTest {
 
         topicMessageService.subscribeTopic(filter)
                 .as(StepVerifier::create)
-                .expectNext(topicMessage1)
-                .expectNext(topicMessage2)
-                .expectNext(topicMessage3)
+                .expectNext(topicMessage1, topicMessage2, topicMessage3)
                 .verifyComplete();
     }
 
@@ -363,7 +359,7 @@ public class TopicMessageServiceTest extends GrpcIntegrationTest {
                 .verify(Duration.ofMillis(700));
     }
 
-    private TopicMessage topicMessage(long sequenceNumber) {
+    private static TopicMessage topicMessage(long sequenceNumber) {
         return TopicMessage.builder()
                 .consensusTimestamp(Instant.EPOCH.plus(sequenceNumber, ChronoUnit.NANOS))
                 .realmNum(0)

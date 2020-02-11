@@ -28,10 +28,12 @@ import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.jdbc.Sql;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 @ContextConfiguration(initializers = GrpcIntegrationTest.TestDatabaseConfiguration.class)
 @SpringBootTest
+@Sql(executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD, scripts = "classpath:cleanup.sql")
 public abstract class GrpcIntegrationTest {
 
     /**
@@ -71,7 +73,7 @@ public abstract class GrpcIntegrationTest {
         }
 
         @PreDestroy
-        public void stop() {
+        public static void stop() {
             if (postgresql != null && postgresql.isRunning()) {
                 log.info("Stopping PostgreSQL");
                 postgresql.stop();
