@@ -44,6 +44,7 @@ public class PollingTopicListener implements TopicListener {
     @Override
     public Flux<TopicMessage> listen(TopicMessageFilter filter) {
         PollingContext context = new PollingContext(filter);
+        context.nextPollStartTime = filter.getStartTime();
         Duration frequency = listenerProperties.getPollingFrequency();
 
         return Flux.interval(frequency)
@@ -57,16 +58,17 @@ public class PollingTopicListener implements TopicListener {
 
     private Flux<TopicMessage> poll(PollingContext context) {
         TopicMessageFilter filter = context.getFilter();
-        TopicMessage last = context.getLast();
-        long limit = filter.hasLimit() ? filter.getLimit() - context.getCount().get() : 0;
-        Instant startTime = last != null ? last.getConsensusTimestampInstant().plusNanos(1) : filter.getStartTime();
+        int maxPageSize = listenerProperties.getMaxPageSize();
+
+        long pageSize = !filter.hasLimit() ? maxPageSize : Math
+                .min(maxPageSize, filter.getLimit() - context.getCount().get());
 
         TopicMessageFilter newFilter = TopicMessageFilter.builder()
-                .endTime(filter.getEndTime())
-                .limit(limit)
+//                .endTime(filter.getEndTime())
+                .limit(pageSize)
                 .realmNum(filter.getRealmNum())
                 .subscriberId(filter.getSubscriberId())
-                .startTime(startTime)
+                .startTime(context.nextPollStartTime)
                 .topicNum(filter.getTopicNum())
                 .build();
 
@@ -81,11 +83,13 @@ public class PollingTopicListener implements TopicListener {
 
         private final TopicMessageFilter filter;
         private final AtomicLong count = new AtomicLong(0L);
-        private volatile TopicMessage last;
+        //        private volatile TopicMessage last;
+        private volatile Instant nextPollStartTime;
         private volatile boolean running = false;
 
         void onNext(TopicMessage topicMessage) {
-            last = topicMessage;
+//            last = topicMessage;
+            nextPollStartTime = topicMessage.getConsensusTimestampInstant().plusNanos(1);
             count.incrementAndGet();
         }
     }

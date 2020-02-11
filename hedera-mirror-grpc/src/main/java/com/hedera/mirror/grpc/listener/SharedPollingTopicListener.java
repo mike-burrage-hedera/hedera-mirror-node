@@ -39,17 +39,17 @@ import com.hedera.mirror.grpc.repository.TopicMessageRepository;
 @Log4j2
 public class SharedPollingTopicListener implements TopicListener {
 
-    private final GrpcProperties grpcProperties;
+    private final ListenerProperties listenerProperties;
     private final TopicMessageRepository topicMessageRepository;
     private final InstantToLongConverter instantToLongConverter;
     private final Flux<TopicMessage> poller;
 
-    public SharedPollingTopicListener(GrpcProperties grpcProperties, ListenerProperties listenerProperties,
+    public SharedPollingTopicListener(ListenerProperties listenerProperties,
                                       TopicMessageRepository topicMessageRepository,
                                       InstantToLongConverter instantToLongConverter) {
-        this.grpcProperties = grpcProperties;
         this.topicMessageRepository = topicMessageRepository;
         this.instantToLongConverter = instantToLongConverter;
+        this.listenerProperties = listenerProperties;
 
         Duration frequency = listenerProperties.getPollingFrequency();
         PollingContext context = new PollingContext();
@@ -76,7 +76,7 @@ public class SharedPollingTopicListener implements TopicListener {
         Instant instant = context.getLastConsensusTimestamp();
         Long consensusTimestamp = instantToLongConverter.convert(instant);
         log.debug("Querying for messages after: {}", instant);
-        Pageable pageable = PageRequest.of(0, grpcProperties.getMaxPageSize());
+        Pageable pageable = PageRequest.of(0, listenerProperties.getMaxPageSize());
 
         return Flux.fromStream(() -> topicMessageRepository
                 .findByConsensusTimestampGreaterThan(consensusTimestamp, pageable))

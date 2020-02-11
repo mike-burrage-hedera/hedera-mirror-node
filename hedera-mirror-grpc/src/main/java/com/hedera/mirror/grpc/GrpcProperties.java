@@ -20,7 +20,6 @@ package com.hedera.mirror.grpc;
  * ‍
  */
 
-import javax.validation.constraints.Min;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
@@ -29,6 +28,4 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties("hedera.mirror.grpc")
 public class GrpcProperties {
-    @Min(32)
-    private int maxPageSize = 1000;
 }
