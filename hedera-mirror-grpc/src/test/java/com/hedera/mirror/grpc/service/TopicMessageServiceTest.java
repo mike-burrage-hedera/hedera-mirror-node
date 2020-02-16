@@ -49,6 +49,9 @@ public class TopicMessageServiceTest extends GrpcIntegrationTest {
     @Resource
     private DomainBuilder domainBuilder;
 
+    @Resource
+    private GrpcProperties grpcProperties;
+
     @Test
     void invalidFilter() {
         TopicMessageFilter filter = TopicMessageFilter.builder()
@@ -152,7 +155,33 @@ public class TopicMessageServiceTest extends GrpcIntegrationTest {
                 .expectNext(topicMessage2)
                 .expectNext(topicMessage3)
                 .thenCancel()
-                .verify(Duration.ofMillis(100));
+                .verify(Duration.ofMillis(500));
+    }
+
+    @Test
+    void historicalMessagesWithEndTimeExceedsPageSize() {
+        int oldMaxPageSize = grpcProperties.getMaxPageSize();
+        grpcProperties.setMaxPageSize(1);
+
+        TopicMessage topicMessage1 = domainBuilder.topicMessage().block();
+        TopicMessage topicMessage2 = domainBuilder.topicMessage().block();
+        TopicMessage topicMessage3 = domainBuilder.topicMessage().block();
+        TopicMessage topicMessage4 = domainBuilder.topicMessage().block();
+
+        TopicMessageFilter filter = TopicMessageFilter.builder()
+                .startTime(Instant.EPOCH)
+                .endTime(topicMessage4.getConsensusTimestamp())
+                .build();
+
+        topicMessageService.subscribeTopic(filter)
+                .as(StepVerifier::create)
+                .expectNext(topicMessage1)
+                .expectNext(topicMessage2)
+                .expectNext(topicMessage3)
+                .thenCancel()
+                .verify(Duration.ofMillis(500));
+
+        grpcProperties.setMaxPageSize(oldMaxPageSize);
     }
 
     @Test

@@ -32,12 +32,12 @@ import org.apache.jmeter.samplers.SampleResult;
 
 import com.hedera.mirror.api.proto.ConsensusTopicQuery;
 import com.hedera.mirror.grpc.jmeter.props.MessageListener;
-import com.hedera.mirror.grpc.jmeter.sampler.ConsensusServiceReactiveSampler;
+import com.hedera.mirror.grpc.jmeter.sampler.HCSTopicSampler;
 
 @Log4j2
-public class ConsensusServiceReactiveClient extends AbstractJavaSamplerClient {
+public class SingleTopicHCSClient extends AbstractJavaSamplerClient {
 
-    private ConsensusServiceReactiveSampler consensusServiceReactiveSampler;
+    private HCSTopicSampler hcsTopicSampler;
 
     /**
      * Setup test by instantiating client using user defined test properties
@@ -48,9 +48,9 @@ public class ConsensusServiceReactiveClient extends AbstractJavaSamplerClient {
         int port = context.getIntParameter("port", 5600);
         long startTime = context.getLongParameter("consensusStartTimeSeconds", 0);
         long endTimeSecs = context.getLongParameter("consensusEndTimeSeconds", 0);
+        long limit = context.getLongParameter("limit", 100);
 
         ConsensusTopicQuery.Builder builder = ConsensusTopicQuery.newBuilder()
-                .setLimit(context.getLongParameter("limit", 100))
                 .setConsensusStartTime(Timestamp.newBuilder().setSeconds(startTime).build())
                 .setTopicID(
                         TopicID.newBuilder()
@@ -62,11 +62,15 @@ public class ConsensusServiceReactiveClient extends AbstractJavaSamplerClient {
             builder.setConsensusEndTime(Timestamp.newBuilder().setSeconds(endTimeSecs).build());
         }
 
-        consensusServiceReactiveSampler = new ConsensusServiceReactiveSampler(host, port, builder.build());
+        if (limit > 0) {
+            builder.setLimit(limit);
+        }
+
+        hcsTopicSampler = new HCSTopicSampler(host, port, builder.build());
 
         super.setupTest(context);
     }
-    
+
     /**
      * Specifies and makes available parameters and their defaults to the jMeter GUI when editing Test Plans
      *
@@ -94,7 +98,7 @@ public class ConsensusServiceReactiveClient extends AbstractJavaSamplerClient {
     @Override
     public SampleResult runTest(JavaSamplerContext context) {
         SampleResult result = new SampleResult();
-        ConsensusServiceReactiveSampler.SamplerResult response = null;
+        HCSTopicSampler.SamplerResult response = null;
         result.sampleStart();
 
         try {
@@ -104,7 +108,7 @@ public class ConsensusServiceReactiveClient extends AbstractJavaSamplerClient {
                     .messagesLatchWaitSeconds(context.getIntParameter("messagesLatchWaitSeconds", 60))
                     .build();
 
-            response = consensusServiceReactiveSampler.subscribeTopic(listener);
+            response = hcsTopicSampler.subscribeTopic(listener);
 
             result.sampleEnd();
             result.setResponseData(response.toString().getBytes());
