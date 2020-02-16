@@ -170,7 +170,7 @@ public class TopicMessageServiceTest extends GrpcIntegrationTest {
 
         TopicMessageFilter filter = TopicMessageFilter.builder()
                 .startTime(Instant.EPOCH)
-                .endTime(topicMessage4.getConsensusTimestamp())
+                .endTime(topicMessage4.getConsensusTimestampInstant())
                 .build();
 
         topicMessageService.subscribeTopic(filter)
