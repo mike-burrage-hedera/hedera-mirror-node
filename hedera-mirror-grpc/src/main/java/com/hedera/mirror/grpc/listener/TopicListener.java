@@ -20,12 +20,14 @@ package com.hedera.mirror.grpc.listener;
  * ‍
  */
 
-import com.hedera.mirror.grpc.domain.TopicMessage;
-
-import com.hedera.mirror.grpc.domain.TopicMessageFilter;
-
 import reactor.core.publisher.Flux;
 
+import com.hedera.mirror.grpc.domain.TopicMessage;
+import com.hedera.mirror.grpc.domain.TopicMessageFilter;
+
+/**
+ * Listens for incoming messages, filtering as necessary
+ */
 public interface TopicListener {
     Flux<TopicMessage> listen(TopicMessageFilter filter);
 }

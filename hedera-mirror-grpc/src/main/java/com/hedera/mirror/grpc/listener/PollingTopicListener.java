@@ -28,28 +28,38 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
+import reactor.retry.Jitter;
+import reactor.retry.Repeat;
 
+import com.hedera.mirror.grpc.GrpcProperties;
 import com.hedera.mirror.grpc.domain.TopicMessage;
 import com.hedera.mirror.grpc.domain.TopicMessageFilter;
-import com.hedera.mirror.grpc.repository.TopicMessageRepositoryAdapter;
+import com.hedera.mirror.grpc.retriever.TopicMessageRetriever;
 
 @Named
 @Log4j2
 @RequiredArgsConstructor
 public class PollingTopicListener implements TopicListener {
 
+    private final GrpcProperties grpcProperties;
     private final ListenerProperties listenerProperties;
-    private final TopicMessageRepositoryAdapter topicMessageRepositoryAdapter;
+    private final TopicMessageRetriever topicMessageRetriever;
+    private final Scheduler scheduler = Schedulers
+            .newParallel("poll", 4 * Runtime.getRuntime().availableProcessors(), true);
 
     @Override
     public Flux<TopicMessage> listen(TopicMessageFilter filter) {
         PollingContext context = new PollingContext(filter);
-        context.nextPollStartTime = filter.getStartTime();
         Duration frequency = listenerProperties.getPollingFrequency();
 
-        return Flux.interval(frequency)
-                .filter(i -> !context.isRunning()) // Discard polling requests while querying
-                .concatMap(i -> poll(context))
+        return Flux.defer(() -> poll(context))
+                .delaySubscription(Duration.ofMillis(frequency.toMillis()), scheduler)
+                .repeatWhen(Repeat.times(Long.MAX_VALUE)
+                        .fixedBackoff(Duration.ofMillis(frequency.toMillis()))
+                        .jitter(Jitter.random(0.1))
+                        .withBackoffScheduler(scheduler))
                 .name("poll")
                 .metrics()
                 .doOnNext(context::onNext)
@@ -58,24 +68,20 @@ public class PollingTopicListener implements TopicListener {
 
     private Flux<TopicMessage> poll(PollingContext context) {
         TopicMessageFilter filter = context.getFilter();
-        int maxPageSize = listenerProperties.getMaxPageSize();
-
-        long pageSize = !filter.hasLimit() ? maxPageSize : Math
-                .min(maxPageSize, filter.getLimit() - context.getCount().get());
+        TopicMessage last = context.getLast();
+        long limit = filter.hasLimit() ? filter.getLimit() - context.getCount().get() : 0;
+        Instant startTime = last != null ? last.getConsensusTimestampInstant().plusNanos(1) : filter.getStartTime();
 
         TopicMessageFilter newFilter = TopicMessageFilter.builder()
-//                .endTime(filter.getEndTime())
-                .limit(pageSize)
+                .endTime(filter.getEndTime())
+                .limit(limit)
                 .realmNum(filter.getRealmNum())
                 .subscriberId(filter.getSubscriberId())
-                .startTime(context.nextPollStartTime)
+                .startTime(startTime)
                 .topicNum(filter.getTopicNum())
                 .build();
 
-        return topicMessageRepositoryAdapter.findByFilter(newFilter)
-                .doOnSubscribe(s -> context.setRunning(true))
-                .doOnCancel(() -> context.setRunning(false))
-                .doOnComplete(() -> context.setRunning(false));
+        return topicMessageRetriever.retrieve(newFilter);
     }
 
     @Data
@@ -83,13 +89,10 @@ public class PollingTopicListener implements TopicListener {
 
         private final TopicMessageFilter filter;
         private final AtomicLong count = new AtomicLong(0L);
-        //        private volatile TopicMessage last;
-        private volatile Instant nextPollStartTime;
-        private volatile boolean running = false;
+        private volatile TopicMessage last;
 
         void onNext(TopicMessage topicMessage) {
-//            last = topicMessage;
-            nextPollStartTime = topicMessage.getConsensusTimestampInstant().plusNanos(1);
+            last = topicMessage;
             count.incrementAndGet();
         }
     }

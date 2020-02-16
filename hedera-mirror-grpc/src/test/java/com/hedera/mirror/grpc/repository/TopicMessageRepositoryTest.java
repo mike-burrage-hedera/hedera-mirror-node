@@ -23,12 +23,10 @@ package com.hedera.mirror.grpc.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
-import java.util.stream.Stream;
 import javax.annotation.Resource;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.hedera.mirror.grpc.GrpcIntegrationTest;
 import com.hedera.mirror.grpc.domain.DomainBuilder;
@@ -135,22 +133,19 @@ public class TopicMessageRepositoryTest extends GrpcIntegrationTest {
     }
 
     @Test
-    @Transactional
     void findByConsensusTimestampGreaterThan() {
         TopicMessage topicMessage1 = domainBuilder.topicMessage().block();
         TopicMessage topicMessage2 = domainBuilder.topicMessage().block();
         TopicMessage topicMessage3 = domainBuilder.topicMessage().block();
         Pageable pageable = PageRequest.of(0, 4);
 
-        try (Stream<TopicMessage> stream = topicMessageRepository
-                .findByConsensusTimestampGreaterThan(topicMessage1.getConsensusTimestamp(), pageable)) {
-            assertThat(stream).containsExactly(topicMessage2, topicMessage3);
-        }
+        assertThat(topicMessageRepository
+                .findByConsensusTimestampGreaterThan(topicMessage1.getConsensusTimestamp(), pageable))
+                .containsExactly(topicMessage2, topicMessage3);
 
         pageable = PageRequest.of(0, 1);
-        try (Stream<TopicMessage> stream = topicMessageRepository
-                .findByConsensusTimestampGreaterThan(topicMessage1.getConsensusTimestamp(), pageable)) {
-            assertThat(stream).containsExactly(topicMessage2);
-        }
+        assertThat(topicMessageRepository
+                .findByConsensusTimestampGreaterThan(topicMessage1.getConsensusTimestamp(), pageable))
+                .containsExactly(topicMessage2);
     }
 }

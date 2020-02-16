@@ -20,7 +20,7 @@ package com.hedera.mirror.grpc.repository;
  * ‍
  */
 
-import java.util.stream.Stream;
+import java.util.List;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
@@ -30,5 +30,5 @@ import com.hedera.mirror.grpc.domain.TopicMessage;
 public interface TopicMessageRepository extends CrudRepository<TopicMessage, Long>, TopicMessageRepositoryCustom {
 
     @Query("from TopicMessage where consensusTimestamp > ?1 order by consensusTimestamp asc")
-    Stream<TopicMessage> findByConsensusTimestampGreaterThan(long consensusTimestamp, Pageable pageable);
+    List<TopicMessage> findByConsensusTimestampGreaterThan(long consensusTimestamp, Pageable pageable);
 }

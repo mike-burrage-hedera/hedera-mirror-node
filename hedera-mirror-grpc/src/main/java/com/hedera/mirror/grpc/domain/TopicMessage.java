@@ -20,7 +20,6 @@ package com.hedera.mirror.grpc.domain;
  * ‍
  */
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import java.time.Instant;
 import java.util.Comparator;
 import javax.persistence.Entity;
@@ -34,7 +33,6 @@ import org.springframework.data.domain.Persistable;
 
 import com.hedera.mirror.grpc.converter.InstantToLongConverter;
 import com.hedera.mirror.grpc.converter.LongToInstantConverter;
-import com.hedera.mirror.grpc.converter.LongToInstantDeserializer;
 
 @Data
 @Entity
@@ -47,23 +45,27 @@ public class TopicMessage implements Comparable<TopicMessage>, Persistable<Long>
     private static final LongToInstantConverter longToInstantConverter = new LongToInstantConverter();
 
     @Id
-    @JsonDeserialize(using = LongToInstantDeserializer.class)
     private Long consensusTimestamp;
+
     @ToString.Exclude
     private byte[] message;
+
     private int realmNum;
+
     @ToString.Exclude
     private byte[] runningHash;
-    private long sequenceNumber;
-    private int topicNum;
 
-    public Instant getConsensusTimestampInstant() {
-        return longToInstantConverter.convert(consensusTimestamp);
-    }
+    private long sequenceNumber;
+
+    private int topicNum;
 
     @Override
     public int compareTo(TopicMessage other) {
         return Comparator.nullsFirst(Comparator.comparingLong(TopicMessage::getSequenceNumber)).compare(this, other);
+    }
+
+    public Instant getConsensusTimestampInstant() {
+        return longToInstantConverter.convert(consensusTimestamp);
     }
 
     @Override

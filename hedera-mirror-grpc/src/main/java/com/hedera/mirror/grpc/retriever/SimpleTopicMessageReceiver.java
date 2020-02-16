@@ -1,4 +1,4 @@
-package com.hedera.mirror.grpc.repository;
+package com.hedera.mirror.grpc.retriever;
 
 /*-
  * ‌
@@ -23,24 +23,28 @@ package com.hedera.mirror.grpc.repository;
 import javax.inject.Named;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 
 import com.hedera.mirror.grpc.domain.TopicMessage;
 import com.hedera.mirror.grpc.domain.TopicMessageFilter;
+import com.hedera.mirror.grpc.repository.TopicMessageRepository;
 
 @Log4j2
 @Named
 @RequiredArgsConstructor
-public class TopicMessageRepositoryAdapter {
+public class SimpleTopicMessageReceiver implements TopicMessageRetriever {
 
+    private final RetrieverProperties retrieverProperties;
     private final TopicMessageRepository topicMessageRepository;
 
-    @Transactional(propagation = Propagation.REQUIRED, readOnly = true)
-    public Flux<TopicMessage> findByFilter(TopicMessageFilter filter) {
+    @Override
+    public Flux<TopicMessage> retrieve(TopicMessageFilter filter) {
+        if (!retrieverProperties.isEnabled()) {
+            return Flux.empty();
+        }
+
         return Flux.defer(() -> Flux.fromStream(topicMessageRepository.findByFilter(filter))
-                .name("findByFilter")
+                .name("retrieve")
                 .metrics()
                 .doOnSubscribe(s -> log.debug("Executing query: {}", filter))
                 .doOnCancel(() -> log.debug("[{}] Cancelled query", filter.getSubscriberId()))

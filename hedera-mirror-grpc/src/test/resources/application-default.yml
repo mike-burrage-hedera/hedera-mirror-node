@@ -15,18 +15,6 @@ hedera:
         username: mirror_node
       listener:
         pollingFrequency: 50ms
-logging:
-  level:
-    root: warn
-    com.hedera.mirror.grpc: TRACE
-    org:
-      hibernate:
-        transaction: DEBUG
-      springframework:
-        transaction: DEBUG
-        orm:
-          jpa:
-            JpaTransactionManager: DEBUG
 spring:
   datasource:
     name: ${hedera.mirror.grpc.db.name}

@@ -15,8 +15,8 @@ grpc:
 logging:
   level:
     root: warn
-    com.hedera.mirror.grpc: info
-    # org.hibernate.SQL: debug
+    com.hedera.mirror.grpc: trace
+    org.hibernate.SQL: debug
     # org.hibernate.type.descriptor.sql.BasicBinder: trace
 management:
   metrics:
@@ -37,10 +37,11 @@ spring:
     password: ${hedera.mirror.grpc.db.password}
     url: jdbc:postgresql://${hedera.mirror.grpc.db.host}:${hedera.mirror.grpc.db.port}/${hedera.mirror.grpc.db.name}?&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC
     username: ${hedera.mirror.grpc.db.username}
+    hikari:
+      maximum-pool-size: 100
   jpa:
     properties:
-      hibernate:
-        generate_statistics: true
+      hibernate.generate_statistics: true
   test:
     database:
       replace: NONE

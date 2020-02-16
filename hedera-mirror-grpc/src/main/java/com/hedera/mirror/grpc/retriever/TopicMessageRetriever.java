@@ -1,4 +1,4 @@
-package com.hedera.mirror.grpc;
+package com.hedera.mirror.grpc.retriever;
 
 /*-
  * ‌
@@ -20,15 +20,14 @@ package com.hedera.mirror.grpc;
  * ‍
  */
 
-import javax.validation.constraints.Min;
-import lombok.Data;
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.validation.annotation.Validated;
+import reactor.core.publisher.Flux;
 
-@Data
-@Validated
-@ConfigurationProperties("hedera.mirror.grpc")
-public class GrpcProperties {
-    @Min(32)
-    private int maxPageSize = 1000;
+import com.hedera.mirror.grpc.domain.TopicMessage;
+import com.hedera.mirror.grpc.domain.TopicMessageFilter;
+
+/**
+ * Retrieves historical topic messages
+ */
+public interface TopicMessageRetriever {
+    Flux<TopicMessage> retrieve(TopicMessageFilter filter);
 }

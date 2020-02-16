@@ -33,6 +33,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 
 @ContextConfiguration(initializers = GrpcIntegrationTest.TestDatabaseConfiguration.class)
 @SpringBootTest
+@Sql(executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD, scripts = "classpath:cleanup.sql")
 @Sql(executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD, scripts = "classpath:cleanup.sql")
 public abstract class GrpcIntegrationTest {
 
@@ -73,7 +74,7 @@ public abstract class GrpcIntegrationTest {
         }
 
         @PreDestroy
-        public static void stop() {
+        public void stop() {
             if (postgresql != null && postgresql.isRunning()) {
                 log.info("Stopping PostgreSQL");
                 postgresql.stop();

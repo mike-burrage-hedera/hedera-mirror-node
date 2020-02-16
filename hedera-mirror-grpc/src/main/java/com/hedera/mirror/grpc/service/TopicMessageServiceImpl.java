@@ -21,6 +21,7 @@ package com.hedera.mirror.grpc.service;
  */
 
 import com.google.common.base.Stopwatch;
+import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.inject.Named;
@@ -30,9 +31,11 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.validation.annotation.Validated;
 import reactor.core.publisher.Flux;
 
+import com.hedera.mirror.grpc.GrpcProperties;
 import com.hedera.mirror.grpc.domain.TopicMessage;
 import com.hedera.mirror.grpc.domain.TopicMessageFilter;
 import com.hedera.mirror.grpc.listener.TopicListener;
+import com.hedera.mirror.grpc.retriever.TopicMessageRetriever;
 
 @Named
 @Log4j2
@@ -40,20 +43,20 @@ import com.hedera.mirror.grpc.listener.TopicListener;
 @Validated
 public class TopicMessageServiceImpl implements TopicMessageService {
 
+    private final GrpcProperties grpcProperties;
     private final TopicListener topicListener;
-//    private final TopicMessageRepositoryAdapter topicMessageRepositoryAdapter;
+    private final TopicMessageRetriever topicMessageRetriever;
 
     @Override
     public Flux<TopicMessage> subscribeTopic(TopicMessageFilter filter) {
         log.info("Subscribing to topic: {}", filter);
         TopicContext topicContext = new TopicContext(filter);
 
-//        return topicMessageRepositoryAdapter.findByFilter(filter)
-//                .doOnComplete(topicContext::onComplete)
-//                .concatWith(Flux.defer(() -> incomingMessages(topicContext))) // Defer creation until query complete
-//                .filter(t -> t.compareTo(topicContext.getLastTopicMessage()) > 0) // Ignore duplicates
-//                .concatMap(t -> missingMessages(topicContext, t))
-        return topicListener.listen(filter)
+        return topicMessageRetriever.retrieve(filter)
+                .doOnComplete(topicContext::onComplete)
+                .concatWith(Flux.defer(() -> incomingMessages(topicContext))) // Defer creation until query complete
+                .filter(t -> t.compareTo(topicContext.getLastTopicMessage()) > 0) // Ignore duplicates
+                .concatMap(t -> missingMessages(topicContext, t))
                 .takeWhile(t -> filter.getEndTime() == null || t.getConsensusTimestampInstant()
                         .isBefore(filter.getEndTime()))
                 .as(t -> filter.hasLimit() ? t.limitRequest(filter.getLimit()) : t)
@@ -62,111 +65,107 @@ public class TopicMessageServiceImpl implements TopicMessageService {
                 .doOnComplete(topicContext::onComplete);
     }
 
-//    private Flux<TopicMessage> incomingMessages(TopicContext topicContext) {
+    private Flux<TopicMessage> incomingMessages(TopicContext topicContext) {
 //        if (!topicContext.shouldListen()) {
 //            return Flux.empty();
 //        }
-//
-//        TopicMessageFilter filter = topicContext.getFilter();
-//        TopicMessage last = topicContext.getLastTopicMessage();
-//        long limit = filter.hasLimit() ? filter.getLimit() - topicContext.getCount().get() : 0;
-//        Instant startTime = last != null ? last.getConsensusTimestampInstant().plusNanos(1) : filter.getStartTime();
-//
-//        TopicMessageFilter newFilter = TopicMessageFilter.builder()
-//                .endTime(filter.getEndTime())
-//                .limit(limit)
-//                .realmNum(filter.getRealmNum())
-//                .startTime(startTime)
-//                .subscriberId(filter.getSubscriberId())
-//                .topicNum(filter.getTopicNum())
-//                .build();
-//
-//        return topicListener.listen(newFilter);
-//    }
-//
-//    private Flux<TopicMessage> missingMessages(TopicContext topicContext, TopicMessage current) {
-//        if (topicContext.isNext(current)) {
-//            return Flux.just(current);
-//        }
-//
-//        TopicMessage last = topicContext.getLastTopicMessage();
-//        TopicMessageFilter filter = topicContext.getFilter();
-//        TopicMessageFilter newFilter = TopicMessageFilter.builder()
-//                .endTime(current.getConsensusTimestampInstant())
-//                .limit(current.getSequenceNumber() - last.getSequenceNumber() - 1)
-//                .realmNum(filter.getRealmNum())
-//                .subscriberId(filter.getSubscriberId())
-//                .startTime(last.getConsensusTimestampInstant().plusNanos(1))
-//                .topicNum(filter.getTopicNum())
-//                .build();
-//
-//        log.info("[{}] Querying topic {} for missing messages between sequence {} and {}",
-//                filter.getSubscriberId(), topicContext.getTopicId(), last.getSequenceNumber(),
-//                current.getSequenceNumber());
-//
-//        return topicMessageRepositoryAdapter.findByFilter(newFilter)
-//                .concatWithValues(current);
-//    }
-//
-//    private enum Mode {
-//        QUERY,
-//        LISTEN;
-//
-//        Mode next() {
-//            return this == QUERY ? LISTEN : this;
-//        }
-//
-//        @Override
-//        public String toString() {
-//            return super.toString().toLowerCase();
-//        }
-//    }
+
+        TopicMessageFilter filter = topicContext.getFilter();
+        TopicMessage last = topicContext.getLastTopicMessage();
+        long limit = filter.hasLimit() ? filter.getLimit() - topicContext.getCount().get() : 0;
+        Instant startTime = last != null ? last.getConsensusTimestampInstant().plusNanos(1) : filter.getStartTime();
+
+        TopicMessageFilter newFilter = TopicMessageFilter.builder()
+                .endTime(filter.getEndTime())
+                .limit(limit)
+                .realmNum(filter.getRealmNum())
+                .startTime(startTime)
+                .subscriberId(filter.getSubscriberId())
+                .topicNum(filter.getTopicNum())
+                .build();
+
+        return topicListener.listen(newFilter);
+    }
+
+    private Flux<TopicMessage> missingMessages(TopicContext topicContext, TopicMessage current) {
+        if (topicContext.isNext(current)) {
+            return Flux.just(current);
+        }
+
+        TopicMessage last = topicContext.getLastTopicMessage();
+        TopicMessageFilter filter = topicContext.getFilter();
+        TopicMessageFilter newFilter = TopicMessageFilter.builder()
+                .endTime(current.getConsensusTimestampInstant())
+                .limit(current.getSequenceNumber() - last.getSequenceNumber() - 1)
+                .realmNum(filter.getRealmNum())
+                .subscriberId(filter.getSubscriberId())
+                .startTime(last.getConsensusTimestampInstant().plusNanos(1))
+                .topicNum(filter.getTopicNum())
+                .build();
+
+        log.info("[{}] Querying topic {} for missing messages between sequence {} and {}",
+                filter.getSubscriberId(), topicContext.getTopicId(), last.getSequenceNumber(),
+                current.getSequenceNumber());
+
+        return topicMessageRetriever.retrieve(newFilter)
+                .concatWithValues(current);
+    }
+
+    private enum Mode {
+        QUERY,
+        LISTEN;
+
+        Mode next() {
+            return this == QUERY ? LISTEN : this;
+        }
+
+        @Override
+        public String toString() {
+            return super.toString().toLowerCase();
+        }
+    }
 
     @Data
     private class TopicContext {
 
-        //        private final TopicMessageFilter filter;
+        private final TopicMessageFilter filter;
         private final String topicId;
-        private final String subscriberId;
         private final Stopwatch stopwatch;
         private final AtomicLong count;
-//        private final Instant startTime;
-//        private volatile TopicMessage lastTopicMessage;
-//        private volatile Mode mode;
+        private final Instant startTime;
+        private volatile TopicMessage lastTopicMessage;
+        private volatile Mode mode;
 
         public TopicContext(TopicMessageFilter filter) {
-//            this.filter = filter;
+            this.filter = filter;
             topicId = filter.getRealmNum() + "." + filter.getTopicNum();
-            subscriberId = filter.getSubscriberId();
             stopwatch = Stopwatch.createStarted();
             count = new AtomicLong(0L);
-//            startTime = filter.getStartTime();
-//            mode = Mode.QUERY;
+            startTime = Instant.now();
+            mode = Mode.QUERY;
         }
 
         void onNext(TopicMessage topicMessage) {
-//            lastTopicMessage = topicMessage;
+            lastTopicMessage = topicMessage;
             count.incrementAndGet();
-            log.trace("[{}] Topic {} received message #{}: {}", subscriberId, topicId, count, topicMessage);
+            log.trace("[{}] Topic {} received message #{}: {}", filter.getSubscriberId(), topicId, count, topicMessage);
         }
 
-//        boolean shouldListen() {
-//            return filter.getEndTime() == null || filter.getEndTime().isAfter(startTime);
-//        }
-//
-//        boolean isNext(TopicMessage topicMessage) {
-//            return lastTopicMessage == null || topicMessage.getSequenceNumber() == lastTopicMessage
-//                    .getSequenceNumber() + 1;
-//        }
+        boolean shouldListen() {
+            return filter.getEndTime() == null || filter.getEndTime().isAfter(startTime);
+        }
+
+        boolean isNext(TopicMessage topicMessage) {
+            return lastTopicMessage == null || topicMessage.getSequenceNumber() == lastTopicMessage
+                    .getSequenceNumber() + 1;
+        }
 
         void onComplete() {
             var elapsed = stopwatch.elapsed(TimeUnit.MILLISECONDS);
             var rate = elapsed > 0 ? (int) (1000.0 * count.get() / elapsed) : 0;
-            log.info("[{}] Topic {} complete with {} messages in {} ({}/s)",
-                    subscriberId, topicId, count, stopwatch, rate);
-//            log.info("[{}] Topic {} {} complete with {} messages in {} ({}/s)", filter
-//                    .getSubscriberId(), topicId, mode, count, stopwatch, rate);
-//            mode = mode.next();
+            log.info("[{}] Topic {} {} complete with {} messages in {} ({}/s)", filter
+                    .getSubscriberId(), topicId, mode, count, stopwatch, rate);
+            mode = mode.next();
         }
     }
 }

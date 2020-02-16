@@ -87,7 +87,7 @@ public class DomainBuilder {
     }
 
     private Mono<TopicMessage> insert(TopicMessage topicMessage) {
-        return Mono.just(topicMessageRepository.save(topicMessage))
-                .doOnNext(d -> log.debug("Inserted: {}", d));
+        return Mono.defer(() -> Mono.just(topicMessageRepository.save(topicMessage)))
+                .doOnNext(t -> log.debug("Inserted: {}", t));
     }
 }
