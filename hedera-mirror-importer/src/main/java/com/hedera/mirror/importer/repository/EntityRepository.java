@@ -25,8 +25,10 @@ import java.util.Optional;
 import com.hedera.mirror.importer.domain.EntityId;
 
 import org.springframework.cache.annotation.CacheConfig;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.jpa.repository.Query;
 
 import com.hedera.mirror.importer.config.CacheConfiguration;
@@ -55,4 +57,10 @@ public interface EntityRepository extends PagingAndSortingRepository<Entities, L
     default <S extends EntityId> S cache(S entity) {
         return entity;
     }
+
+    @Caching(evict = {
+            @CacheEvict(value = "entity_ids", cacheManager = CacheConfiguration.BIG_LRU_CACHE, allEntries = true),
+            @CacheEvict(value = "entities", cacheManager = CacheConfiguration.EXPIRE_AFTER_30M, allEntries = true)
+    })
+    default void clearCaches() {}
 }

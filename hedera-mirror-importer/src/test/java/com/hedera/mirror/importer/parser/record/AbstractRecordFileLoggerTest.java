@@ -98,11 +98,14 @@ public class AbstractRecordFileLoggerTest extends IntegrationTest {
     final void beforeCommon() throws Exception {
         assertTrue(RecordFileLogger.start());
         assertEquals(RecordFileLogger.INIT_RESULT.OK, RecordFileLogger.initFile(UUID.randomUUID().toString()));
+        entityRepository.clearCaches();
     }
 
     @AfterEach
     final void afterCommon() {
         RecordFileLogger.finish();
+        entityRepository.clearCaches();
+
     }
 
     protected final void assertAccount(AccountID accountId, com.hedera.mirror.importer.domain.Entities dbEntity) {

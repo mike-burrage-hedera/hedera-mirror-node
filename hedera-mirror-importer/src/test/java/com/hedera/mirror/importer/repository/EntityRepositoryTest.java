@@ -24,15 +24,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.mirror.importer.domain.EntityId;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.hedera.mirror.importer.domain.Entities;
 
 public class EntityRepositoryTest extends AbstractRepositoryTest {
 
+    @AfterEach
+    @BeforeEach
+    void beforeAndAfter() {
+        entityRepository.deleteAll();
+        entityRepository.clearCaches();
+    }
+
     @Test
     void findByPrimaryKey() {
-        int entityTypeId = entityTypeRepository.findByName("account").get().getId();
+        int entityTypeId = getAccountEntityTypeId();
 
         Entities autoRenewAccount = new Entities();
         autoRenewAccount.setEntityTypeId(entityTypeId);
@@ -79,10 +90,8 @@ public class EntityRepositoryTest extends AbstractRepositoryTest {
 
     @Test
     void findEntityIdByNativeIds() {
-        var entityTypeId = entityTypeRepository.findByName("account").get().getId();
-
         var entity = new Entities();
-        entity.setEntityTypeId(entityTypeId);
+        entity.setEntityTypeId(getAccountEntityTypeId());
         entity.setEntityShard(1L);
         entity.setEntityRealm(2L);
         entity.setEntityNum(3L);
@@ -96,5 +105,53 @@ public class EntityRepositoryTest extends AbstractRepositoryTest {
                 ,() -> assertEquals(expected.getEntityRealm(), entityId.getEntityRealm())
                 ,() -> assertEquals(expected.getEntityNum(), entityId.getEntityNum())
         );
+    }
+
+    @Test
+    void cacheEntityId() {
+        // Cache but don't save.
+        var entityId = new EntityId(1L, 2L, 3L, 4L, getAccountEntityTypeId());
+        entityRepository.cache(entityId);
+
+        var retrieved = entityRepository.findEntityIdByNativeIds(entityId.getEntityShard(), entityId.getEntityRealm(),
+                entityId.getEntityNum()).get();
+
+        assertAll(() -> assertEquals(retrieved.getId(), entityId.getId())
+                ,() -> assertEquals(retrieved.getEntityShard(), entityId.getEntityShard())
+                ,() -> assertEquals(retrieved.getEntityRealm(), entityId.getEntityRealm())
+                ,() -> assertEquals(retrieved.getEntityNum(), entityId.getEntityNum())
+        );
+    }
+
+    @Test
+    void saveAndCacheEntityId() {
+        var entity = getTestEntity();
+
+        // Save+cache, then delete from repository but keep cached ID.
+        entityRepository.saveAndCacheEntityId(entity);
+        entityRepository.deleteAll();
+
+        var retrieved = entityRepository.findEntityIdByNativeIds(entity.getEntityShard(), entity.getEntityRealm(),
+                entity.getEntityNum()).get();
+
+        assertAll(() -> assertEquals(retrieved.getId(), entity.getId())
+                ,() -> assertEquals(retrieved.getEntityShard(), entity.getEntityShard())
+                ,() -> assertEquals(retrieved.getEntityRealm(), entity.getEntityRealm())
+                ,() -> assertEquals(retrieved.getEntityNum(), entity.getEntityNum())
+        );
+    }
+
+    private int getAccountEntityTypeId() {
+        return entityTypeRepository.findByName("account").get().getId();
+    }
+
+    private Entities getTestEntity() {
+        var entityTypeId = entityTypeRepository.findByName("account").get().getId();
+        var entity = new Entities();
+        entity.setEntityTypeId(entityTypeId);
+        entity.setEntityShard(1L);
+        entity.setEntityRealm(2L);
+        entity.setEntityNum(3L);
+        return entity;
     }
 }

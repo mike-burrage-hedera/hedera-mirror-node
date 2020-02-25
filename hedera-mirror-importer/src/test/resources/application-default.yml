@@ -15,7 +15,7 @@ hedera:
         enabled: false
 spring:
   cache:
-    enabled: false
+    enabled: true
   task:
     scheduling:
       enabled: false
